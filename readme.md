@@ -8,7 +8,7 @@
 
 > **Autonomous State-Space Inversion & Anti-Flooding Closed-Loop Controller for Deep-Space Loop Heat Pipes (LHPs) and Deployable Radiators.**
 
-Developed by **RFWaveCode LLC** (`CAGE: 8V2L1` | `UEI: Y4K8NJM49L93`) under NASA SBIR 2026 Solicitation Topic **S1.02: Technologies for Deep Space Science & Cryogenic/Two-Phase Thermal Architecture**.
+Developed by **RFWaveCode** for NASA SBIR 2026 Solicitation Topic **S1.02: Technologies for Deep Space Science & Cryogenic/Two-Phase Thermal Architecture**.
 
 🔗 **Interactive Web Application & HUD:** [https://msamsonov1.github.io/Loop-Heat/](https://msamsonov1.github.io/Loop-Heat/)  
 📬 **Primary Technical Point of Contact:** [support@rfwavecode.com](mailto:support@rfwavecode.com)
@@ -273,7 +273,7 @@ void LoopHeat_ProcessTelemetry(void)
 
 ## IP & Licensing
 
-* **RFWaveCode LLC:** Proprietary Software Architecture and Inversion Algorithms.
+* **RFWaveCode:** Proprietary Software Architecture and Inversion Algorithms 2026.
 * **NASA SBIR Data Rights:** Protected under FAR 52.227-20 for Phase I awardees. Commercial rights reserved for civil industrial deployments.
 
 ---
@@ -282,6 +282,6 @@ void LoopHeat_ProcessTelemetry(void)
 
 For licensing, technical documentation, or partnership inquiries regarding the **NASA SBIR Topic S1.02** flight transition:
 
-* **Company:** RFWaveCode LLC
+* **Company:** RFWaveCode
 * **Website:** [https://msamsonov1.github.io/Loop-Heat/](https://msamsonov1.github.io/Loop-Heat/)
 * **Email:** [support@rfwavecode.com](mailto:support@rfwavecode.com)
