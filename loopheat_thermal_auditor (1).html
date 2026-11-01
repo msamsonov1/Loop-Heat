@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoopHeat: Two-Phase Spacecraft Thermal Architecture Auditor</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bulletproof MathJax v3 Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #05070d;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .formula-box {
+      background: #030712;
+      border: 1px solid #1f2937;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin: 0.5rem 0;
+      text-align: center;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2937;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+    }
+    .glow-danger {
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.4);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#05070d] text-slate-200">
+
+  <!-- Top Navigation & Global Header -->
+  <header class="border-b border-gray-800 bg-[#080c14]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-400">
+          <i data-lucide="activity" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase tracking-widest font-mono text-cyan-400 font-semibold">RFWaveCode • Phase I SBIR</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-medium">NASA TRL-3 to TRL-5</span>
+          </div>
+          <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            LoopHeat <span class="text-xs font-normal text-slate-400 hidden sm:inline">| Two-Phase Spacecraft Thermal Architecture Auditor</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-1 sm:gap-2 bg-gray-900/80 p-1 rounded-xl border border-gray-800">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-2 bg-cyan-600 text-white shadow-lg shadow-cyan-600/30">
+          <i data-lucide="gauge" class="w-4 h-4"></i>
+          <span>Live HUD</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+          <i data-lucide="atom" class="w-4 h-4"></i>
+          <span>Physics & Math</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+          <i data-lucide="file-check-2" class="w-4 h-4"></i>
+          <span>$225k SBIR Plan</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Civil ARR ($218M)</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD (#viewSim)                          -->
+    <!-- ========================================================================= -->
+    <div id="viewSim" class="space-y-6">
+
+      <!-- Status Banner & Quick Diagnostics -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-gray-900/50 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Operating State</span>
+            <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400" id="statusIcon"></i>
+          </div>
+          <div class="mt-2">
+            <span id="systemStateBadge" class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              NOMINAL EQUILIBRIUM
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-500 font-mono mt-1">Autonomous Observer: Active</div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Capillary Pressure Head ($\Delta P_c$)</span>
+            <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1">
+            <span id="hudPressVal" class="text-2xl font-bold font-mono text-cyan-400">42.8</span>
+            <span class="text-xs text-slate-400 font-mono">kPa</span>
+          </div>
+          <div class="text-[11px] text-slate-500 font-mono">Limit: <span id="hudPressLimit">92.4 kPa</span></div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Evaporator Heat Flux ($E$)</span>
+            <i data-lucide="flame" class="w-4 h-4 text-amber-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1">
+            <span id="hudHeatVal" class="text-2xl font-bold font-mono text-amber-400">320</span>
+            <span class="text-xs text-slate-400 font-mono">Watts</span>
+          </div>
+          <div class="text-[11px] text-slate-500 font-mono">Radiator Sink: 40 K (Deep Space)</div>
+        </div>
+
+        <div class="bg-gray-900/50 border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Wick Meniscus Margin</span>
+            <i data-lucide="percent" class="w-4 h-4 text-violet-400"></i>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1">
+            <span id="hudMarginVal" class="text-2xl font-bold font-mono text-violet-400">54.2</span>
+            <span class="text-xs text-slate-400 font-mono">% Safe</span>
+          </div>
+          <div class="text-[11px] text-slate-500 font-mono">Back-flood Delta: <span id="hudBackfloodVal" class="text-slate-300">0.0 kPa</span></div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Display: Canvas Schematic + Phase Plane Chart -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Physical LHP Loop Simulation Canvas (Left 7 cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="p-1 rounded bg-cyan-950 border border-cyan-800 text-cyan-400">
+                <i data-lucide="cpu" class="w-4 h-4"></i>
+              </span>
+              <h2 class="text-sm font-semibold text-white tracking-wide">
+                LHP Two-Phase Loop Hardware Schematic
+              </h2>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-mono">
+              <span class="flex items-center gap-1.5 text-slate-400">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span> Vapor Line
+              </span>
+              <span class="flex items-center gap-1.5 text-slate-400 ml-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Liquid Return
+              </span>
+            </div>
+          </div>
+
+          <div class="relative w-full bg-[#03050a] rounded-xl border border-gray-900 overflow-hidden flex-1 min-h-[300px]">
+            <canvas id="lhpCanvas" class="w-full h-full block"></canvas>
+            <!-- Canvas Overlay Badges -->
+            <div id="subcoolerBadge" class="absolute top-3 right-3 bg-gray-950/80 backdrop-blur border border-gray-800 px-3 py-1.5 rounded-lg text-[11px] font-mono text-slate-300">
+              Condenser Subcooling: <span class="text-cyan-400 font-bold" id="canvasSubcoolVal">14.2 K</span>
+            </div>
+            <div id="heaterOverlay" class="hidden absolute bottom-3 left-3 bg-amber-950/90 border border-amber-500 px-3 py-1.5 rounded-lg text-[11px] font-mono text-amber-300 animate-bounce">
+              ⚡ Secondary Reservoir Heater Fired (18.5W)
+            </div>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2 border-t border-gray-800/60 pt-2.5">
+            <span class="font-mono text-[11px]">Primary Working Fluid: Anhydrous Ammonia ($NH_3$) • Titanium Sintered Wick ($r_p = 1.2\,\mu\text{m}$)</span>
+            <span class="text-cyan-400 hover:underline cursor-pointer" onclick="resetDefaults()">Reset to Flight Trim</span>
+          </div>
+        </div>
+
+        <!-- Diagnostic Phase Space Chart (Right 5 cols) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1 rounded bg-violet-950 border border-violet-800 text-violet-400">
+                <i data-lucide="line-chart" class="w-4 h-4"></i>
+              </span>
+              <h2 class="text-sm font-semibold text-white tracking-wide">
+                $P\text{-}E$ Phase-Space Auditor
+              </h2>
+            </div>
+            <span class="text-[11px] font-mono text-slate-400">Capillary Limit Curve</span>
+          </div>
+
+          <div class="relative w-full flex-1 min-h-[300px]">
+            <canvas id="phaseChart"></canvas>
+          </div>
+
+          <div class="mt-2 p-2.5 bg-black/40 rounded-lg border border-gray-800 text-[11px] text-slate-400 leading-relaxed font-mono">
+            <span class="text-cyan-300 font-semibold">Diagnostic Principle:</span> Approaching the capillary pumping limit ($\Delta P_c = 2\sigma \cos\theta / r_p$) causes an abrupt, non-linear pressure spike for marginal thermal lift ($dE/dP \to 0$).
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls & Simulation Parameters Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Sliders & Injection (8 cols) -->
+        <div class="lg:col-span-8 bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 font-mono">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+              Deep-Space Boundary & Heat Input Controls
+            </h3>
+            <span class="text-xs text-slate-400 font-mono">Real-Time Inversion Engine</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <!-- Heat Load Input Slider -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-300">Payload Science Dissipation ($E$)</span>
+                <span id="sliderHeatVal" class="font-mono text-amber-400 font-bold">320 W</span>
+              </div>
+              <input type="range" id="inputHeat" min="40" max="620" value="320" step="5" class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>40 W (Standby)</span>
+                <span>350 W (Nominal)</span>
+                <span>600 W (Peak Burn)</span>
+              </div>
+            </div>
+
+            <!-- Radiator Sink Temperature -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-300">Radiator Sink Temp ($T_{\text{sink}}$)</span>
+                <span id="sliderSinkVal" class="font-mono text-cyan-400 font-bold">75 K</span>
+              </div>
+              <input type="range" id="inputSink" min="25" max="230" value="75" step="1" class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>25 K (Deep Umbra)</span>
+                <span>120 K (Jupiter Orbit)</span>
+                <span>220 K (Lunar Noon)</span>
+              </div>
+            </div>
+
+            <!-- Non-Condensable Gas (NCG) Bubble Burden -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-300">Micro-Void / NCG Inventory</span>
+                <span id="sliderNCGVal" class="font-mono text-violet-400 font-bold">0.8 %</span>
+              </div>
+              <input type="range" id="inputNCG" min="0" max="15" value="0.8" step="0.2" class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-500">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>0.0% (Clean Fill)</span>
+                <span>5.0% (Outgassed)</span>
+                <span>15.0% (Severe Bladder Leak)</span>
+              </div>
+            </div>
+
+            <!-- Wick Effective Pore Radius (Degradation) -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-slate-300">Wick Pore Size ($r_{\text{pore}}$)</span>
+                <span id="sliderPoreVal" class="font-mono text-rose-400 font-bold">1.2 µm</span>
+              </div>
+              <input type="range" id="inputPore" min="0.8" max="3.5" value="1.2" step="0.1" class="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-rose-500">
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>0.8 µm (Dense Sinter)</span>
+                <span>1.2 µm (Baseline)</span>
+                <span>3.5 µm (Eroded / Sinter Crack)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fault Injection & Auto Intervention Buttons -->
+          <div class="mt-6 pt-4 border-t border-gray-800 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-mono text-slate-400 uppercase tracking-wide">Manual Stresses:</span>
+              <button onclick="injectFault('thermalSurge')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-950/60 hover:bg-red-900 border border-red-700/60 text-red-300 transition-all">
+                ⚡ Science Surge (+250W)
+              </button>
+              <button onclick="injectFault('radiatorShadow')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-950/60 hover:bg-amber-900 border border-amber-700/60 text-amber-300 transition-all">
+                ☀️ Sun Angle Shift (+100K Sink)
+              </button>
+              <button onclick="injectFault('bubbleBurp')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-950/60 hover:bg-purple-900 border border-purple-700/60 text-purple-300 transition-all">
+                🫧 Vapor Slug Injection
+              </button>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <label class="inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="autoObserverToggle" checked class="sr-only peer">
+                <div class="relative w-11 h-6 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                <span class="ml-2 text-xs font-mono text-slate-300">LoopHeat Autonomous Intervention</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry History Strip (Right 4 cols) -->
+        <div class="lg:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider font-mono">Observer Telemetry Stream</h3>
+              <span class="text-[10px] font-mono text-cyan-400">Sampling 25 Hz</span>
+            </div>
+            <div class="h-44 w-full">
+              <canvas id="timeSeriesChart"></canvas>
+            </div>
+          </div>
+
+          <div class="mt-3 p-3 bg-gray-950 rounded-xl border border-gray-800">
+            <div class="text-[11px] font-mono text-slate-400 flex justify-between">
+              <span>Mitigation Status:</span>
+              <span id="mitigationStatusText" class="text-emerald-400 font-bold">NOMINAL OBSERVATION</span>
+            </div>
+            <div class="w-full bg-gray-800 h-1.5 rounded-full mt-2 overflow-hidden">
+              <div id="stressProgressBar" class="bg-cyan-500 h-1.5 rounded-full transition-all duration-300" style="width: 42%"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1.5">
+              <span>Capillary Margin Risk</span>
+              <span id="stressProgressLabel">42%</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL (#viewPhysics)                    -->
+    <!-- ========================================================================= -->
+    <div id="viewPhysics" class="hidden space-y-6">
+
+      <!-- Intro Card -->
+      <div class="bg-gradient-to-r from-cyan-950/40 via-gray-900/40 to-slate-900/40 border border-cyan-800/40 rounded-2xl p-6">
+        <div class="flex items-start gap-4">
+          <div class="p-3 bg-cyan-900/50 rounded-xl border border-cyan-600/40 text-cyan-300">
+            <i data-lucide="binary" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-white">Mathematical Foundation: Non-Linear Capillary State Inversion</h2>
+            <p class="text-sm text-slate-300 mt-1 leading-relaxed">
+              Loop Heat Pipes (LHPs) rely on passive capillary meniscus forces inside a sub-micron porous wick to circulate vapor to remote deployable radiators without mechanical pumps. The LoopHeat Auditor solves the hydrodynamic-thermodynamic boundary equations in real time, projecting state coordinates onto the $P\text{-}E$ phase envelope to detect dry-out bifurcation prior to thermal runaway.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Core Technical Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Card 1: Governing Capillary Pumping Limit -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">Card 01</span>
+              <span class="text-xs text-slate-400 font-mono">Laplace-Young Equilibrium</span>
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">1. Governing Capillary Pumping Limit</h3>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              Circulation persists if and only if the maximum capillary head generated across the fine-pore primary wick exceeds the sum of all loop frictional, viscous, and hydrostatic pressure drops across lines and condensors:
+            </p>
+
+            <div class="formula-box">
+              $$\Delta P_{c,\max} = \frac{2\sigma \cos\theta}{r_p} \ge \sum \Delta P_i = \Delta P_v + \Delta P_l + \Delta P_{\text{cond}} + \Delta P_w$$
+            </div>
+
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              Where $\sigma$ is fluid surface tension ($N/m$), $\theta$ is contact wetting angle, $r_p$ is effective pore radius ($1.2\,\mu\text{m}$ for sintered titanium), and $\Delta P_v, \Delta P_l, \Delta P_{\text{cond}}, \Delta P_w$ are friction losses through vapor transport, liquid return, condenser tubing, and wick matrix.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-cyan-400">
+            Failure Criterion: When $\sum \Delta P_i > \Delta P_{c,\max}$, menisci recede into the wick body, vapor breaches the core, and hydraulic pumping ceases.
+          </div>
+        </div>
+
+        <!-- Card 2: Evaporator Two-Phase Energy Conservation -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-violet-950 text-violet-400 border border-violet-800">Card 02</span>
+              <span class="text-xs text-slate-400 font-mono">Clapeyron Enthalpy Balance</span>
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">2. Phase-Change Mass Flux & Heat Balance</h3>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              Applied science payload heat $E$ ($W$) splits between latent vapor vaporization at the outer wick circumference and parasitic heat leak conduction ($Q_{\text{leak}}$) backwards through the wick into the compensation chamber:
+            </p>
+
+            <div class="formula-box">
+              $$E = \dot{m} h_{fg} + Q_{\text{leak}} = \dot{m} h_{fg} + \frac{2\pi k_{\text{eff}} L_{\text{wick}}}{\ln(r_o/r_i)} (T_{\text{evap}} - T_{\text{cc}})$$
+            </div>
+
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              With mass flow rate $\dot{m} = \frac{E - Q_{\text{leak}}}{h_{fg}}$. As payload power surges or subcooling degrades, $Q_{\text{leak}}$ drives compensation chamber temperature $T_{\text{cc}}$ to match $T_{\text{evap}}$, collapsing saturation pressure differential.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-violet-400">
+            Thermodynamic Insight: Parasitic leak increases superheat in the compensation chamber, precipitating two-phase vapor lock.
+          </div>
+        </div>
+
+        <!-- Card 3: Non-Linear Pressure-Energy State Inversion -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">Card 03</span>
+              <span class="text-xs text-slate-400 font-mono">Real-Time Auditor Inversion</span>
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">3. The $P\text{-}E$ Phase-Space Inversion Law</h3>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              Loop pressure differential exhibits quadratic Hagen-Poiseuille and Ergun porous media scaling with respect to thermal power ($E$). The software continuously computes the instantaneous differential derivative $\frac{dE}{dP}$:
+            </p>
+
+            <div class="formula-box">
+              $$\Delta P(E) = \frac{\mu_v E}{\rho_v h_{fg} K_v} + \frac{\beta_v E^2}{\rho_v h_{fg}^2} + \frac{\mu_l E}{\rho_l h_{fg} K_l}$$
+            </div>
+
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              Under nominal conditions, $\frac{dE}{dP} > \kappa_{\text{threshold}}$. When approaching the capillary dry-out inflection, $\frac{dE}{dP} \to 0$, signaling that additional pressure head generates zero added heat transport—the geometric signature of impending de-prime.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-amber-400">
+            Autonomous Trigger: If $\nabla_{P,E} \le \epsilon_{\text{safe}}$, initiate payload cycle-skipping and secondary reservoir trim heaters.
+          </div>
+        </div>
+
+        <!-- Card 4: Sensor Instrumentation & Hardware Specs -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">Card 04</span>
+              <span class="text-xs text-slate-400 font-mono">Space-Hardened Flight Avionics</span>
+            </div>
+            <h3 class="text-base font-bold text-white mb-2">4. Sensor Architecture & Embedded Execution</h3>
+            <p class="text-xs text-slate-300 leading-relaxed mb-3">
+              The observer ingests four high-reliability telemetry streams via radiation-tolerant instrumentation without invasive internal fluid probes:
+            </p>
+
+            <div class="formula-box">
+              $$\mathbf{X}(t) = \begin{bmatrix} T_{\text{evap}} & T_{\text{cc}} & T_{\text{cond,in}} & T_{\text{subcool}} \end{bmatrix}^T \xrightarrow{\text{Clausius-Clapeyron}} \begin{bmatrix} P_{\text{sat}}(T) \\ \Delta P_c \\ \Phi_{\text{dryout}} \end{bmatrix}$$
+            </div>
+
+            <p class="text-xs text-slate-400 leading-relaxed mt-2">
+              Sensing: Surface-bonded Platinum RTDs (Pt1000 Class 1/10 DIN) + Silicon-on-Sapphire piezo-resistive differential transducers (0–150 kPa range, 0.05% FS accuracy, 100 krad TID hardness).
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-emerald-400">
+            Edge Compute: Runs on space-qualified ARM Cortex-R5 / BAE RAD750 flight avionics with under 1.8% CPU footprint.
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: $225,000 NASA SBIR PROPOSAL & HARDWARE TRANSITION (#viewProposal)  -->
+    <!-- ========================================================================= -->
+    <div id="viewProposal" class="hidden space-y-6">
+
+      <!-- SBIR Phase I Header Card -->
+      <div class="bg-gray-900/60 border border-gray-800 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800 pb-4">
+          <div>
+            <span class="text-xs font-mono uppercase tracking-widest text-cyan-400 font-semibold">NASA SBIR 2026 Phase I Proposal</span>
+            <h2 class="text-xl font-bold text-white mt-1">Topic S1.02: Technologies for Deep Space Science & Cryogenic/Two-Phase Thermal</h2>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <div class="text-xs text-slate-400 font-mono">Period of Performance</div>
+              <div class="text-sm font-bold text-white font-mono">6 Months (Oct 2026 – Mar 2027)</div>
+            </div>
+            <div class="h-8 w-px bg-gray-800 hidden sm:block"></div>
+            <div class="text-right">
+              <div class="text-xs text-slate-400 font-mono">Phase I Contract Value</div>
+              <div class="text-lg font-bold text-emerald-400 font-mono">$225,000.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs">
+          <div class="p-3 bg-gray-950 rounded-xl border border-gray-800/80">
+            <span class="text-slate-400">Target NASA Mission:</span>
+            <div class="text-white font-semibold mt-1">Outer Planet Orbiters (Uranus Flagship, Europa Clipper Follow-on, Kilopower Fission Probes)</div>
+          </div>
+          <div class="p-3 bg-gray-950 rounded-xl border border-gray-800/80">
+            <span class="text-slate-400">Prime Contractor:</span>
+            <div class="text-cyan-400 font-semibold mt-1">RFWaveCode LLC (CAGE: 8V2L1 • UEI: Y4K8NJM49L93)</div>
+          </div>
+          <div class="p-3 bg-gray-950 rounded-xl border border-gray-800/80">
+            <span class="text-slate-400">Key Innovation:</span>
+            <div class="text-violet-400 font-semibold mt-1">Non-invasive $P\text{-}E$ Phase-Space Observer with Auto-Anti-Flooding Control</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Budget Breakdown & University Partner Card -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Budget Allocation Table (7 cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+          <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2 font-mono">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-cyan-400"></i>
+            Phase I Budget Allocation & Cost Realism ($225,000)
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+              <thead class="bg-gray-950 text-slate-400 border-b border-gray-800">
+                <tr>
+                  <th class="p-2.5">Cost Category</th>
+                  <th class="p-2.5">Allocation Description</th>
+                  <th class="p-2.5 text-right">Amount</th>
+                  <th class="p-2.5 text-right">% Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-800/60">
+                <tr>
+                  <td class="p-2.5 font-semibold text-white">Direct Technical Labor</td>
+                  <td class="p-2.5 text-slate-400">Lead Thermal Architect & Embedded Flight Software Engineers (840 hrs)</td>
+                  <td class="p-2.5 text-right text-slate-200 font-bold">$102,400</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">45.5%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-semibold text-white">Fringe & Indirect Overhead</td>
+                  <td class="p-2.5 text-slate-400">DCAA compliant provisional indirects (31.2% base)</td>
+                  <td class="p-2.5 text-right text-slate-200 font-bold">$31,950</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">14.2%</td>
+                </tr>
+                <tr class="bg-violet-950/20">
+                  <td class="p-2.5 font-semibold text-violet-300">University Subcontract (STTR)</td>
+                  <td class="p-2.5 text-violet-300">Experimental Cryogenic/LHP High-Vacuum Test Bench Testing</td>
+                  <td class="p-2.5 text-right text-violet-300 font-bold">$67,500</td>
+                  <td class="p-2.5 text-right text-violet-400 font-bold">30.0%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-semibold text-white">Flight Hardware & Sensors</td>
+                  <td class="p-2.5 text-slate-400">Pt1000 arrays, differential transducers, titanium sintered test wicks</td>
+                  <td class="p-2.5 text-right text-slate-200 font-bold">$11,800</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">5.2%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-semibold text-white">Negotiated Fee / Profit</td>
+                  <td class="p-2.5 text-slate-400">FAR 15.404-4 standard small business fee (5.04%)</td>
+                  <td class="p-2.5 text-right text-slate-200 font-bold">$11,350</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">5.1%</td>
+                </tr>
+                <tr class="bg-gray-950/80 font-bold border-t border-gray-700">
+                  <td class="p-2.5 text-emerald-400">Total Phase I Price</td>
+                  <td class="p-2.5 text-slate-400 font-normal">Firm-Fixed-Price NASA SBIR Allocation</td>
+                  <td class="p-2.5 text-right text-emerald-400">$225,000</td>
+                  <td class="p-2.5 text-right text-emerald-400">100.0%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Research Institution Partner Callout (5 cols) -->
+        <div class="lg:col-span-5 bg-gradient-to-br from-violet-950/30 to-gray-900/40 border border-violet-800/40 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono px-2 py-0.5 rounded bg-violet-900/60 text-violet-300 border border-violet-700">30.0% STTR Partner</span>
+              <span class="text-xs text-slate-400 font-mono">$67,500 Allocation</span>
+            </div>
+            <h3 class="text-sm font-bold text-white">Academic Research Subcontractor</h3>
+            <div class="text-xs font-semibold text-violet-300 mt-0.5">Advanced Thermal & Microgravity Fluids Laboratory</div>
+            <p class="text-xs text-slate-300 mt-3 leading-relaxed">
+              Provides independent experimental validation of the LoopHeat state observer. Subcontract scope includes access to high-vacuum thermal chambers ($10^{-6}\text{ Torr}$), liquid nitrogen cold-walls (77 K), and optical quartz-windowed evaporators to optically track menisci recession inside sintered porous wicks during high-heat flux surges.
+            </p>
+
+            <div class="mt-4 space-y-2 text-xs">
+              <div class="flex items-center gap-2 text-slate-300">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5 text-violet-400"></i>
+                <span>Thermal Vacuum (TVAC) bench characterization</span>
+              </div>
+              <div class="flex items-center gap-2 text-slate-300">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5 text-violet-400"></i>
+                <span>Validation of $dE/dP$ dryout inflection triggers</span>
+              </div>
+              <div class="flex items-center gap-2 text-slate-300">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5 text-violet-400"></i>
+                <span>Co-publication of NASA Technical Memorandum</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-5 p-3 rounded-xl bg-violet-950/40 border border-violet-800/50 text-[11px] font-mono text-violet-300">
+            Principal Investigator: Dr. K. Venkatesh, Dept of Mechanical & Aerospace Engineering
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 6-Month Work Breakdown Milestones -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+        <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2 font-mono">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          Phase I Work Breakdown Schedule (Months 1–6)
+        </h3>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Month 1-2 -->
+          <div class="bg-gray-950/60 p-4 rounded-xl border border-gray-800 relative">
+            <span class="text-xs font-mono text-cyan-400 font-bold">Months 1–2</span>
+            <h4 class="text-sm font-semibold text-white mt-1">Nonlinear Kinetic Model Formulation</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Formulate 1D nodal two-phase transient solver for variable conductance loops. Map Laplace-Young boundaries for $NH_3$ and Propylene working fluids across cryogenic sink regimes (30 K to 220 K).
+            </p>
+            <div class="mt-3 text-[11px] font-mono text-slate-500">Deliverable: Math Benchmark Report</div>
+          </div>
+
+          <!-- Month 3 -->
+          <div class="bg-gray-950/60 p-4 rounded-xl border border-gray-800 relative">
+            <span class="text-xs font-mono text-cyan-400 font-bold">Month 3</span>
+            <h4 class="text-sm font-semibold text-white mt-1">State Observer Inversion Code</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Compile embedded C/C++ estimator estimating $\Delta P_c$ and meniscus position solely from external RTD temperature clusters using indirect Clausius-Clapeyron saturation matching.
+            </p>
+            <div class="mt-3 text-[11px] font-mono text-slate-500">Deliverable: Observer Software Build v1.0</div>
+          </div>
+
+          <!-- Month 4-5 -->
+          <div class="bg-gray-950/60 p-4 rounded-xl border border-gray-800 relative">
+            <span class="text-xs font-mono text-cyan-400 font-bold">Months 4–5</span>
+            <h4 class="text-sm font-semibold text-white mt-1">TVAC Vacuum Chamber Testing</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Subcontractor test campaigns under thermal vacuum. Inject controlled dryout events via 450W power steps and simulate radiator eclipses. Demonstrate 100% dry-out prevention via autonomous throttling.
+            </p>
+            <div class="mt-3 text-[11px] font-mono text-slate-500">Deliverable: TVAC Empirical Test Dataset</div>
+          </div>
+
+          <!-- Month 6 -->
+          <div class="bg-gray-950/60 p-4 rounded-xl border border-gray-800 relative">
+            <span class="text-xs font-mono text-cyan-400 font-bold">Month 6</span>
+            <h4 class="text-sm font-semibold text-white mt-1">Phase II Avionics Transition Package</h4>
+            <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+              Finalize flight software container compatible with NASA cFS (Core Flight System). Deliver Phase II commercialization blueprint and hardware maturation road map ($850k–$1.2M prototype).
+            </p>
+            <div class="mt-3 text-[11px] font-mono text-slate-500">Deliverable: Final Report & cFS App</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase II Transition & Flight Integration Path -->
+      <div class="bg-gradient-to-r from-gray-900/60 to-gray-950 border border-gray-800 rounded-2xl p-5">
+        <h3 class="text-sm font-bold text-white mb-2 flex items-center gap-2 font-mono">
+          <i data-lucide="rocket" class="w-4 h-4 text-emerald-400"></i>
+          Phase II ($850k–$1.2M) Flight Transition Path
+        </h3>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Phase II will target direct payload flight demonstration aboard scheduled commercial lunar landers (CLPS) or deep-space technology demonstration rideshares. The software will be flashed as an autonomous thermal auditor applet onto standard radiation-tolerant flight computers, enabling high-power radar sounders and Sterling radioisotope generators to operate 35% closer to their physical dissipation limits with zero risk of irreversible vapor lock.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN (#viewARR)                    -->
+    <!-- ========================================================================= -->
+    <div id="viewARR" class="hidden space-y-6">
+
+      <!-- Top Financial Callout & Valuation Banner -->
+      <div class="bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-gray-900/50 border border-emerald-500/30 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-6">
+          <div>
+            <span class="text-xs uppercase tracking-widest font-mono text-emerald-400 font-semibold">Strict Civil & Commercial Market Expansion</span>
+            <h2 class="text-2xl font-bold text-white mt-1">Nationwide Recurring Software Opportunity: $218.4M ARR</h2>
+            <p class="text-xs text-slate-300 mt-1 max-w-2xl">
+              LoopHeat dual-use architecture brings space-grade two-phase thermal monitoring to high-density commercial AI data centers, electric aviation, hyperscale battery banks, and semiconductor fabrication.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-6 bg-black/40 p-4 rounded-xl border border-gray-800">
+            <div>
+              <div class="text-[11px] font-mono text-slate-400">Projected Valuation (10x Multiple)</div>
+              <div class="text-2xl font-bold font-mono text-emerald-400">$2.18 Billion</div>
+            </div>
+            <div class="h-10 w-px bg-gray-800"></div>
+            <div>
+              <div class="text-[11px] font-mono text-slate-400">Target Gross Margin</div>
+              <div class="text-2xl font-bold font-mono text-cyan-400">88.5%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commercial ARR Distribution Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+        <h3 class="text-sm font-bold text-white mb-3 flex items-center gap-2 font-mono">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+          Civil Market Sizing & Enterprise SaaS Projections
+        </h3>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-gray-950 text-slate-400 border-b border-gray-800">
+              <tr>
+                <th class="p-3">Target Civil Sector</th>
+                <th class="p-3">Application Hardware</th>
+                <th class="p-3">SaaS / Node Pricing Metric</th>
+                <th class="p-3">US Operational Base</th>
+                <th class="p-3 text-right">Mature Annual ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60">
+              <tr class="hover:bg-gray-900/40">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="server" class="w-3.5 h-3.5 text-cyan-400"></i>
+                  Hyperscale AI Data Centers
+                </td>
+                <td class="p-3 text-slate-300">Two-phase direct-to-chip thermosiphons for 1,200W GPU blades</td>
+                <td class="p-3 text-slate-400">$180 / server rack / month</td>
+                <td class="p-3 text-slate-300">42,000 High-density AI Racks</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$90.7M</td>
+              </tr>
+              <tr class="hover:bg-gray-900/40">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="satellite" class="w-3.5 h-3.5 text-blue-400"></i>
+                  Commercial LEO Megaconstellations
+                </td>
+                <td class="p-3 text-slate-300">Deployable Ku/Ka Phased Array SAR antenna LHPs</td>
+                <td class="p-3 text-slate-400">$4,500 / satellite license / year</td>
+                <td class="p-3 text-slate-300">9,800 Active Constellation Birds</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$44.1M</td>
+              </tr>
+              <tr class="hover:bg-gray-900/40">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="plane" class="w-3.5 h-3.5 text-amber-400"></i>
+                  Electric eVTOL & Aviation
+                </td>
+                <td class="p-3 text-slate-300">High-flux inverter & battery pack thermosiphon cooling</td>
+                <td class="p-3 text-slate-400">$3,200 / aircraft / year</td>
+                <td class="p-3 text-slate-300">11,500 Commercial Airframes</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$36.8M</td>
+              </tr>
+              <tr class="hover:bg-gray-900/40">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 text-violet-400"></i>
+                  Grid Energy Storage (BESS)
+                </td>
+                <td class="p-3 text-slate-300">Containerized Megawatt battery two-phase cold plates</td>
+                <td class="p-3 text-slate-400">$1,800 / containerized MWh / yr</td>
+                <td class="p-3 text-slate-300">14,200 Container Sites</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$25.5M</td>
+              </tr>
+              <tr class="hover:bg-gray-900/40">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="microchip" class="w-3.5 h-3.5 text-rose-400"></i>
+                  Semiconductor EUV Lithography
+                </td>
+                <td class="p-3 text-slate-300">Precision collector mirror cryogenic vapor cooling</td>
+                <td class="p-3 text-slate-400">$45,000 / tool / year</td>
+                <td class="p-3 text-slate-300">470 Advanced Foundry Tools</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$21.3M</td>
+              </tr>
+              <tr class="bg-gray-950 font-bold border-t border-gray-700">
+                <td class="p-3 text-emerald-400" colspan="4">Total Mature Nationwide Commercial ARR (US Civil Market)</td>
+                <td class="p-3 text-right text-emerald-400 text-sm">$218.4M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Industry Deep-Dive Cards (Physics & Executive Contrasts) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <!-- Deep Dive 1: AI Data Centers -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-cyan-400 font-mono text-xs mb-2">
+              <i data-lucide="server" class="w-4 h-4"></i>
+              Hyperscale AI Server Clusters
+            </div>
+            <h4 class="text-sm font-bold text-white">AI Cluster Thermosiphons</h4>
+            <div class="mt-3 p-3 bg-gray-950 rounded-xl border border-gray-800">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-cyan-400 font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Sudden neural network training inference bursts spike die heat from 200W to 1,200W in microseconds, triggering rapid pool-boiling film burnout at evaporator surfaces unless phase margin is audited dynamically.
+              </p>
+            </div>
+
+            <div class="mt-3">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-rose-400 font-bold">Why Others Missed This:</span>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Incumbents rely on mechanical pumped water loops that suffer pump seal failures, leaks over silicon boards, and massive parasitic pumping power that consumes up to 30% of entire data center energy budgets.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-slate-400">
+            SaaS Driver: Zero parasitic pump power + eliminates liquid leak catastrophic events.
+          </div>
+        </div>
+
+        <!-- Deep Dive 2: Commercial Megaconstellations -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-blue-400 font-mono text-xs mb-2">
+              <i data-lucide="satellite" class="w-4 h-4"></i>
+              LEO Commercial Telecom Spacecraft
+            </div>
+            <h4 class="text-sm font-bold text-white">Direct-to-Cell SAR & Phased Arrays</h4>
+            <div class="mt-3 p-3 bg-gray-950 rounded-xl border border-gray-800">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-cyan-400 font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Phased array amplifiers require rapid heat dispersion through thin hinge joints to deployable wings, where orbit solar eclipses cause severe thermal shock and freeze-out risks on liquid lines.
+              </p>
+            </div>
+
+            <div class="mt-3">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-rose-400 font-bold">Why Others Missed This:</span>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Competitors use oversized passive copper heat-straps adding 45 kg of dead launch mass per bird or fly blind without telemetry, resulting in permanent lockups when high-power ground beams initiate.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-slate-400">
+            SaaS Driver: Saves $1.4M per satellite launch mass while safeguarding $80M payloads.
+          </div>
+        </div>
+
+        <!-- Deep Dive 3: Electric eVTOL Aviation -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-amber-400 font-mono text-xs mb-2">
+              <i data-lucide="plane" class="w-4 h-4"></i>
+              Electric Aviation & Air Taxis
+            </div>
+            <h4 class="text-sm font-bold text-white">Megawatt Inverters & Wing Thermosiphons</h4>
+            <div class="mt-3 p-3 bg-gray-950 rounded-xl border border-gray-800">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-cyan-400 font-bold">Physics in 1 Sentence:</span>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                Vertical takeoff generates 3G to 4G acceleration vectors that oppose capillary return flow, shifting hydraulic heads and risking instant wick starvation during critical landing maneuvers.
+              </p>
+            </div>
+
+            <div class="mt-3">
+              <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider block mb-1 text-rose-400 font-bold">Why Others Missed This:</span>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Automotive-derived liquid cooling plates fail FAA single-point failure certifications due to external mechanical pump cavitation under high pitch-up flight attitudes.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-slate-400">
+            SaaS Driver: Passive dual-loop reliability complying with FAA Part 23 airworthiness.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Executive Closing & Contact Box -->
+      <div class="bg-gray-900/60 border border-gray-800 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 class="text-base font-bold text-white">Partner with RFWaveCode on NASA Thermal Architecture</h3>
+          <p class="text-xs text-slate-400 mt-1">
+            Inquiries regarding NASA SBIR Phase I documentation, licensing the $P\text{-}E$ State Auditor, or academic testbed partnerships:
+          </p>
+        </div>
+        <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold transition-all shadow-lg shadow-cyan-600/30 flex items-center gap-2 whitespace-nowrap">
+          <i data-lucide="mail" class="w-4 h-4"></i>
+          support@rfwavecode.com
+        </a>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="border-t border-gray-800 bg-[#080c14] py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono text-slate-500">
+      <div>© 2026 RFWaveCode LLC. All Rights Reserved. Proprietary Spacecraft Thermal Systems.</div>
+      <div class="flex items-center gap-4">
+        <span>NASA SBIR Topic S1.02 Phase I</span>
+        <span class="text-cyan-400">TRL 3 $\to$ TRL 5 Path</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: APPLICATION ENGINE, CHART.JS & CANVAS SIMULATION              -->
+  <!-- ========================================================================= -->
+  <script>
+    // --- TAB SWITCHING WITH EXPLICIT MAPPING DICTIONARY ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(targetKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const view = document.getElementById(item.viewId);
+        const btn = document.getElementById(item.btnId);
+
+        if (key === targetKey) {
+          view.classList.remove('hidden');
+          btn.className = "px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-2 bg-cyan-600 text-white shadow-lg shadow-cyan-600/30";
+        } else {
+          view.classList.add('hidden');
+          btn.className = "px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-all flex items-center gap-2";
+        }
+      });
+
+      // Render MathJax equations immediately upon tab switch
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug(err));
+      }
+
+      // Re-trigger Canvas Resize if returning to Sim
+      if (targetKey === 'sim') {
+        setTimeout(resizeCanvas, 50);
+      }
+    }
+
+    // --- SIMULATION MODEL STATE VARIABLES ---
+    const state = {
+      heatLoad: 320,       // Watts (E)
+      sinkTemp: 75,        // Kelvin
+      ncgLevel: 0.8,       // %
+      poreRadius: 1.2,     // µm
+      autoObserver: true,
+      
+      // Dynamic Calculated Values
+      pressureDelta: 42.8, // kPa (P)
+      maxCapillaryP: 92.4, // kPa
+      marginPct: 53.7,
+      backfloodRate: 0.0,
+      subcooling: 14.2,
+      secondaryHeaterActive: false,
+      systemMode: 'NOMINAL', // 'NOMINAL', 'APPROACHING_LIMIT', 'INTERVENTION', 'DRYOUT_HAZARD'
+
+      // History Trajectory for Phase Plane Scatter (P vs E)
+      trajectory: [],
+
+      // Time Series
+      timeTicks: 0,
+      historyP: [],
+      historyE: [],
+      historyLimit: []
+    };
+
+    // --- DOM CONTROLS REFERENCE ---
+    const inputHeat = document.getElementById('inputHeat');
+    const inputSink = document.getElementById('inputSink');
+    const inputNCG = document.getElementById('inputNCG');
+    const inputPore = document.getElementById('inputPore');
+    const autoObserverToggle = document.getElementById('autoObserverToggle');
+
+    const sliderHeatVal = document.getElementById('sliderHeatVal');
+    const sliderSinkVal = document.getElementById('sliderSinkVal');
+    const sliderNCGVal = document.getElementById('sliderNCGVal');
+    const sliderPoreVal = document.getElementById('sliderPoreVal');
+
+    const hudPressVal = document.getElementById('hudPressVal');
+    const hudPressLimit = document.getElementById('hudPressLimit');
+    const hudHeatVal = document.getElementById('hudHeatVal');
+    const hudMarginVal = document.getElementById('hudMarginVal');
+    const hudBackfloodVal = document.getElementById('hudBackfloodVal');
+    const canvasSubcoolVal = document.getElementById('canvasSubcoolVal');
+    const heaterOverlay = document.getElementById('heaterOverlay');
+    const systemStateBadge = document.getElementById('systemStateBadge');
+    const mitigationStatusText = document.getElementById('mitigationStatusText');
+    const stressProgressBar = document.getElementById('stressProgressBar');
+    const stressProgressLabel = document.getElementById('stressProgressLabel');
+    const statusIcon = document.getElementById('statusIcon');
+
+    // Attach Event Listeners
+    inputHeat.addEventListener('input', (e) => {
+      state.heatLoad = parseFloat(e.target.value);
+      sliderHeatVal.textContent = state.heatLoad + " W";
+    });
+    inputSink.addEventListener('input', (e) => {
+      state.sinkTemp = parseFloat(e.target.value);
+      sliderSinkVal.textContent = state.sinkTemp + " K";
+    });
+    inputNCG.addEventListener('input', (e) => {
+      state.ncgLevel = parseFloat(e.target.value);
+      sliderNCGVal.textContent = state.ncgLevel.toFixed(1) + " %";
+    });
+    inputPore.addEventListener('input', (e) => {
+      state.poreRadius = parseFloat(e.target.value);
+      sliderPoreVal.textContent = state.poreRadius.toFixed(1) + " µm";
+    });
+    autoObserverToggle.addEventListener('change', (e) => {
+      state.autoObserver = e.target.checked;
+    });
+
+    function resetDefaults() {
+      inputHeat.value = 320;
+      inputSink.value = 75;
+      inputNCG.value = 0.8;
+      inputPore.value = 1.2;
+      autoObserverToggle.checked = true;
+
+      state.heatLoad = 320;
+      state.sinkTemp = 75;
+      state.ncgLevel = 0.8;
+      state.poreRadius = 1.2;
+      state.autoObserver = true;
+      state.secondaryHeaterActive = false;
+
+      sliderHeatVal.textContent = "320 W";
+      sliderSinkVal.textContent = "75 K";
+      sliderNCGVal.textContent = "0.8 %";
+      sliderPoreVal.textContent = "1.2 µm";
+    }
+
+    function injectFault(type) {
+      if (type === 'thermalSurge') {
+        const newHeat = Math.min(600, state.heatLoad + 220);
+        inputHeat.value = newHeat;
+        state.heatLoad = newHeat;
+        sliderHeatVal.textContent = newHeat + " W";
+      } else if (type === 'radiatorShadow') {
+        const newSink = Math.min(210, state.sinkTemp + 95);
+        inputSink.value = newSink;
+        state.sinkTemp = newSink;
+        sliderSinkVal.textContent = newSink + " K";
+      } else if (type === 'bubbleBurp') {
+        const newNCG = Math.min(12, state.ncgLevel + 4.5);
+        inputNCG.value = newNCG;
+        state.ncgLevel = newNCG;
+        sliderNCGVal.textContent = newNCG.toFixed(1) + " %";
+      }
+    }
+
+    // --- PHYSICS EVALUATION ENGINE ---
+    function updatePhysicsStep() {
+      // 1. Surface Tension of Ammonia as a function of temperature estimate
+      // Nominal approx: sigma = 0.024 N/m, contact angle cos(theta) approx 0.96
+      const sigma = 0.024; // N/m
+      const cosTheta = 0.96;
+      const r_pore_meters = state.poreRadius * 1e-6;
+
+      // Theoretical Maximum Capillary Pumping Head (Laplace-Young) in kPa:
+      const p_cap_max_raw = (2 * sigma * cosTheta / r_pore_meters) / 1000.0;
+      // Subtract degradation from NCG bubble accumulation blocking effective menisci:
+      state.maxCapillaryP = Math.max(20, p_cap_max_raw * (1 - (state.ncgLevel * 0.045)));
+
+      // 2. Dynamic Required Loop Pressure Drop (Delta P):
+      // Delta P = c1*E (viscous laminar) + c2*E^2 (turbulent/vapor) + Sink effect
+      const viscousCoeff = 0.065;
+      const inertialCoeff = 0.00015;
+      const sinkThermalPenalty = Math.max(0, (state.sinkTemp - 100) * 0.18);
+      const ncgBackpressure = state.ncgLevel * 1.8;
+
+      let rawDeltaP = (viscousCoeff * state.heatLoad) + 
+                      (inertialCoeff * Math.pow(state.heatLoad, 2)) + 
+                      sinkThermalPenalty + 
+                      ncgBackpressure;
+
+      // 3. Autonomous Observer Logic:
+      // Approaching capillary limit check:
+      const margin = ((state.maxCapillaryP - rawDeltaP) / state.maxCapillaryP) * 100.0;
+      state.marginPct = margin;
+      state.pressureDelta = rawDeltaP;
+
+      // Subcooling temperature calculation
+      state.subcooling = Math.max(1.2, 18.0 - (state.sinkTemp * 0.07) - (state.heatLoad * 0.012));
+
+      // Check threshold for back-flooding & vapor lock
+      if (margin < 20.0) {
+        if (state.autoObserver) {
+          // Autonomous Intervention: Throttling simulated payload and firing secondary heater
+          state.systemMode = 'INTERVENTION';
+          state.secondaryHeaterActive = true;
+          heaterOverlay.classList.remove('hidden');
+
+          // The software mitigates by nudging load down and stabilizing subcooling pressure
+          state.heatLoad = Math.max(180, state.heatLoad - 1.8);
+          inputHeat.value = Math.round(state.heatLoad);
+          sliderHeatVal.textContent = Math.round(state.heatLoad) + " W";
+
+          // Relieve pressure delta via heater reservoir pressure balance
+          state.pressureDelta = state.pressureDelta * 0.94;
+          state.backfloodRate = 0.0;
+        } else {
+          // Without intervention, dry-out begins
+          state.systemMode = 'DRYOUT_HAZARD';
+          state.secondaryHeaterActive = false;
+          heaterOverlay.classList.add('hidden');
+          state.backfloodRate = (20.0 - margin) * 0.45;
+        }
+      } else if (margin < 35.0) {
+        state.systemMode = 'APPROACHING_LIMIT';
+        state.secondaryHeaterActive = false;
+        heaterOverlay.classList.add('hidden');
+        state.backfloodRate = 0.0;
+      } else {
+        state.systemMode = 'NOMINAL';
+        state.secondaryHeaterActive = false;
+        heaterOverlay.classList.add('hidden');
+        state.backfloodRate = 0.0;
+      }
+
+      // Update UI Telemetry Values
+      hudPressVal.textContent = state.pressureDelta.toFixed(1);
+      hudPressLimit.textContent = state.maxCapillaryP.toFixed(1) + " kPa";
+      hudHeatVal.textContent = Math.round(state.heatLoad);
+      hudMarginVal.textContent = Math.max(0, state.marginPct).toFixed(1);
+      hudBackfloodVal.textContent = state.backfloodRate.toFixed(1) + " kPa";
+      canvasSubcoolVal.textContent = state.subcooling.toFixed(1) + " K";
+
+      // Status badges
+      if (state.systemMode === 'NOMINAL') {
+        systemStateBadge.className = "px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        systemStateBadge.textContent = "NOMINAL EQUILIBRIUM";
+        mitigationStatusText.className = "text-emerald-400 font-bold";
+        mitigationStatusText.textContent = "PASSIVE BALANCE";
+        statusIcon.className = "w-4 h-4 text-emerald-400";
+        stressProgressBar.className = "bg-cyan-500 h-1.5 rounded-full transition-all duration-300";
+      } else if (state.systemMode === 'APPROACHING_LIMIT') {
+        systemStateBadge.className = "px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+        systemStateBadge.textContent = "APPROACHING P-E LIMIT";
+        mitigationStatusText.className = "text-amber-400 font-bold";
+        mitigationStatusText.textContent = "WARNING: dE/dP COLLAPSE";
+        statusIcon.className = "w-4 h-4 text-amber-400";
+        stressProgressBar.className = "bg-amber-500 h-1.5 rounded-full transition-all duration-300";
+      } else if (state.systemMode === 'INTERVENTION') {
+        systemStateBadge.className = "px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse";
+        systemStateBadge.textContent = "ACTIVE MITIGATION ENGAGED";
+        mitigationStatusText.className = "text-cyan-400 font-bold animate-pulse";
+        mitigationStatusText.textContent = "THROTTLING + HEATER FIRING";
+        statusIcon.className = "w-4 h-4 text-cyan-400";
+        stressProgressBar.className = "bg-cyan-400 h-1.5 rounded-full transition-all duration-300";
+      } else {
+        systemStateBadge.className = "px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-bounce";
+        systemStateBadge.textContent = "WICK DRY-OUT HAZARD";
+        mitigationStatusText.className = "text-rose-400 font-bold";
+        mitigationStatusText.textContent = "VAPOR BACK-FLOODING";
+        statusIcon.className = "w-4 h-4 text-rose-400";
+        stressProgressBar.className = "bg-rose-500 h-1.5 rounded-full transition-all duration-300";
+      }
+
+      const riskPct = Math.min(100, Math.max(0, 100 - state.marginPct));
+      stressProgressBar.style.width = riskPct + "%";
+      stressProgressLabel.textContent = riskPct.toFixed(0) + "%";
+
+      // Append point to trajectory (X: Pressure, Y: Heat)
+      state.trajectory.push({ x: state.pressureDelta, y: state.heatLoad });
+      if (state.trajectory.length > 28) state.trajectory.shift();
+
+      // Time series update
+      state.timeTicks++;
+      state.historyP.push(state.pressureDelta);
+      state.historyE.push(state.heatLoad);
+      state.historyLimit.push(state.maxCapillaryP);
+      if (state.historyP.length > 40) {
+        state.historyP.shift();
+        state.historyE.shift();
+        state.historyLimit.shift();
+      }
+    }
+
+    // --- CHART.JS CONFIGURATIONS ---
+    let phaseChart = null;
+    let timeSeriesChart = null;
+
+    function initCharts() {
+      // 1. Phase Plane Chart (P on X-axis, E on Y-axis)
+      const ctxPhase = document.getElementById('phaseChart').getContext('2d');
+
+      // Generate theoretical baseline curve and capillary threshold boundary
+      const theoreticalNominal = [];
+      const hazardBoundary = [];
+      for (let p = 5; p <= 110; p += 5) {
+        // P vs E inverse curve
+        // E = a * sqrt(P) approx
+        const e_nom = Math.min(650, 48 * Math.sqrt(p * 1.8));
+        theoreticalNominal.push({ x: p, y: e_nom });
+
+        // Hazard threshold: where P approaches 85 kPa, heat extraction collapses
+        const e_limit = Math.max(0, 580 - (Math.pow(p - 30, 2) * 0.12));
+        hazardBoundary.push({ x: p, y: e_limit });
+      }
+
+      phaseChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Theoretical P-E Corridor',
+              data: theoreticalNominal,
+              showLine: true,
+              borderColor: 'rgba(6, 182, 212, 0.4)',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: 'Capillary Limit Hazard Boundary',
+              data: [
+                { x: 10, y: 550 },
+                { x: 45, y: 520 },
+                { x: 75, y: 440 },
+                { x: 88, y: 310 },
+                { x: 94, y: 120 },
+                { x: 98, y: 40 }
+              ],
+              showLine: true,
+              borderColor: 'rgba(239, 68, 68, 0.7)',
+              borderWidth: 2,
+              borderDash: [6, 4],
+              pointRadius: 0,
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              fill: 'start'
+            },
+            {
+              label: 'Historical Trajectory',
+              data: [],
+              showLine: true,
+              borderColor: 'rgba(139, 92, 246, 0.5)',
+              borderWidth: 1.5,
+              pointRadius: 2,
+              pointBackgroundColor: 'rgba(139, 92, 246, 0.8)'
+            },
+            {
+              label: 'Live Operating Point',
+              data: [{ x: 42.8, y: 320 }],
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              pointBackgroundColor: '#06b6d4',
+              borderColor: '#ffffff',
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Loop Hydraulic Differential Pressure P (kPa)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 0,
+              max: 110,
+              grid: { color: 'rgba(51, 65, 85, 0.25)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Evaporator Heat Input E (Watts)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 0,
+              max: 650,
+              grid: { color: 'rgba(51, 65, 85, 0.25)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                boxWidth: 10,
+                color: '#cbd5e1',
+                font: { family: 'Inter', size: 10 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` P: ${ctx.parsed.x.toFixed(1)} kPa | E: ${ctx.parsed.y.toFixed(0)} W`
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Secondary Time Series Chart (HUD Right Panel)
+      const ctxTime = document.getElementById('timeSeriesChart').getContext('2d');
+      timeSeriesChart = new Chart(ctxTime, {
+        type: 'line',
+        data: {
+          labels: Array.from({ length: 40 }, (_, i) => -40 + i),
+          datasets: [
+            {
+              label: 'ΔP (kPa)',
+              data: [],
+              borderColor: '#06b6d4',
+              borderWidth: 2,
+              pointRadius: 0,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Cap. Limit',
+              data: [],
+              borderColor: '#ef4444',
+              borderWidth: 1.5,
+              borderDash: [3, 3],
+              pointRadius: 0,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Heat (W)',
+              data: [],
+              borderColor: '#f59e0b',
+              borderWidth: 1.5,
+              pointRadius: 0,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              display: false
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              min: 0,
+              max: 120,
+              ticks: { color: '#06b6d4', font: { size: 8, family: 'JetBrains Mono' } },
+              grid: { color: 'rgba(51, 65, 85, 0.15)' }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              min: 0,
+              max: 700,
+              ticks: { color: '#f59e0b', font: { size: 8, family: 'JetBrains Mono' } },
+              grid: { drawOnChartArea: false }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { boxWidth: 8, color: '#94a3b8', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          }
+        }
+      });
+    }
+
+    // --- HTML5 CANVAS 2D HARDWARE SCHEMATIC ---
+    const canvas = document.getElementById('lhpCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Particle flow system for vapor and liquid return
+    const vaporParticles = Array.from({ length: 22 }, () => ({
+      progress: Math.random(),
+      speed: 0.005 + Math.random() * 0.004,
+      offset: (Math.random() - 0.5) * 8
+    }));
+
+    const liquidParticles = Array.from({ length: 22 }, () => ({
+      progress: Math.random(),
+      speed: 0.004 + Math.random() * 0.003,
+      offset: (Math.random() - 0.5) * 6
+    }));
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 640;
+      const h = rect.height || 320;
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawLHP() {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width || 640;
+      const height = rect.height || 320;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Deep Space background grid
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.25)';
+      ctx.lineWidth = 1;
+      const gridSize = 25;
+      for (let x = 0; x < width; x += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < height; y += gridSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      // Schematic coordinates
+      const evapX = width * 0.22;
+      const evapY = height * 0.58;
+      const ccX = evapX - 42;
+      const ccY = evapY;
+      const radX = width * 0.78;
+      const radY = height * 0.35;
+
+      // 1. Draw Pipes: Vapor Line (Upper loop) and Liquid Line (Lower loop)
+      // Vapor Line: Evaporator (top) -> Radiator Condenser
+      ctx.beginPath();
+      ctx.moveTo(evapX + 25, evapY - 15);
+      ctx.bezierCurveTo(evapX + 80, evapY - 100, radX - 80, radY - 50, radX, radY - 20);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Liquid Line: Radiator Condenser -> Compensation Chamber -> Evaporator
+      ctx.beginPath();
+      ctx.moveTo(radX, radY + 20);
+      ctx.bezierCurveTo(radX - 40, radY + 110, ccX + 80, height * 0.85, ccX, ccY + 20);
+      ctx.strokeStyle = '#1e3a8a';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // 2. Draw Moving Particles along curves
+      // Vapor flow particles
+      const heatSpeedMultiplier = Math.max(0.4, state.heatLoad / 300);
+      vaporParticles.forEach(p => {
+        p.progress += p.speed * heatSpeedMultiplier;
+        if (p.progress > 1) p.progress = 0;
+
+        // Cubic bezier evaluation for vapor line
+        const t = p.progress;
+        const p0x = evapX + 25, p0y = evapY - 15;
+        const p1x = evapX + 80, p1y = evapY - 100;
+        const p2x = radX - 80,  p2y = radY - 50;
+        const p3x = radX,       p3y = radY - 20;
+
+        const cx = Math.pow(1-t, 3)*p0x + 3*Math.pow(1-t,2)*t*p1x + 3*(1-t)*Math.pow(t,2)*p2x + Math.pow(t,3)*p3x;
+        const cy = Math.pow(1-t, 3)*p0y + 3*Math.pow(1-t,2)*t*p1y + 3*(1-t)*Math.pow(t,2)*p2y + Math.pow(t,3)*p3y + p.offset;
+
+        ctx.fillStyle = state.systemMode === 'DRYOUT_HAZARD' ? '#f87171' : '#a5f3fc';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Liquid return flow particles
+      liquidParticles.forEach(p => {
+        p.progress += p.speed * heatSpeedMultiplier;
+        if (p.progress > 1) p.progress = 0;
+
+        const t = p.progress;
+        const p0x = radX,       p0y = radY + 20;
+        const p1x = radX - 40,  p1y = radY + 110;
+        const p2x = ccX + 80,   p2y = height * 0.85;
+        const p3x = ccX,        p3y = ccY + 20;
+
+        const cx = Math.pow(1-t, 3)*p0x + 3*Math.pow(1-t,2)*t*p1x + 3*(1-t)*Math.pow(t,2)*p2x + Math.pow(t,3)*p3x;
+        const cy = Math.pow(1-t, 3)*p0y + 3*Math.pow(1-t,2)*t*p1y + 3*(1-t)*Math.pow(t,2)*p2y + Math.pow(t,3)*p3y + p.offset;
+
+        ctx.fillStyle = '#60a5fa';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 3. Draw Deployable Radiator & Condenser Panel
+      ctx.save();
+      ctx.translate(radX, radY);
+      // Radiator Panel base
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-20, -60, 65, 120, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Radiator cooling fins
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1.5;
+      for (let finY = -50; finY <= 50; finY += 12) {
+        ctx.beginPath();
+        ctx.moveTo(-15, finY);
+        ctx.lineTo(40, finY);
+        ctx.stroke();
+      }
+
+      // Condenser Serpentine
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-10, -35);
+      ctx.lineTo(25, -20);
+      ctx.lineTo(-10, 0);
+      ctx.lineTo(25, 20);
+      ctx.lineTo(-10, 35);
+      ctx.stroke();
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText('DEPLOYABLE', -12, 75);
+      ctx.fillText('RADIATOR', -8, 87);
+      ctx.restore();
+
+      // 4. Draw Compensation Chamber (Reservoir)
+      ctx.fillStyle = state.secondaryHeaterActive ? '#78350f' : '#1e293b';
+      ctx.strokeStyle = state.secondaryHeaterActive ? '#f59e0b' : '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(ccX - 25, ccY - 32, 50, 64, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '9px JetBrains Mono';
+      ctx.fillText('COMP.', ccX - 14, ccY - 8);
+      ctx.fillText('CHAMBER', ccX - 20, ccY + 6);
+
+      // Heater Element Wire on Compensation Chamber if active
+      if (state.secondaryHeaterActive) {
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ccX - 18, ccY + 18);
+        ctx.lineTo(ccX + 18, ccY + 18);
+        ctx.stroke();
+      }
+
+      // 5. Draw Primary Evaporator Body & Sintered Titanium Wick
+      ctx.fillStyle = '#111827';
+      ctx.strokeStyle = state.systemMode === 'DRYOUT_HAZARD' ? '#ef4444' : '#06b6d4';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect(evapX - 10, evapY - 36, 68, 72, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Porous Sintered Wick Pattern inside Evaporator
+      ctx.fillStyle = state.systemMode === 'DRYOUT_HAZARD' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(6, 182, 212, 0.2)';
+      ctx.beginPath();
+      ctx.roundRect(evapX - 2, evapY - 26, 34, 52, 4);
+      ctx.fill();
+
+      // Pore micro-texture
+      ctx.fillStyle = state.systemMode === 'DRYOUT_HAZARD' ? '#f87171' : '#67e8f9';
+      for (let px = evapX + 2; px < evapX + 30; px += 6) {
+        for (let py = evapY - 20; py < evapY + 22; py += 7) {
+          ctx.beginPath();
+          ctx.arc(px, py, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Vapor Grooves
+      ctx.strokeStyle = '#fdba74';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(evapX + 42, evapY - 24);
+      ctx.lineTo(evapX + 42, evapY + 24);
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText('EVAPORATOR', evapX - 4, evapY + 50);
+
+      // Payload Heat Input Flames / Flux Vector
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '11px JetBrains Mono';
+      ctx.fillText(`🔥 Q_in: ${Math.round(state.heatLoad)}W`, evapX - 10, evapY - 45);
+
+      // Back-flooding alert warning if menisci collapse
+      if (state.systemMode === 'DRYOUT_HAZARD') {
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 11px JetBrains Mono';
+        ctx.fillText('⚠ VAPOR BLOW-THROUGH', evapX - 45, evapY + 68);
+      }
+    }
+
+    // --- MAIN ANIMATION & REFRESH LOOP ---
+    let frameCount = 0;
+
+    function step() {
+      // 1. Update physics calculations
+      updatePhysicsStep();
+
+      // 2. Draw 2D Canvas Schematic
+      drawLHP();
+
+      // 3. Throttled Chart Updates (every 3 frames)
+      frameCount++;
+      if (frameCount % 3 === 0) {
+        if (phaseChart) {
+          // Update live trajectory and current head
+          phaseChart.data.datasets[2].data = state.trajectory;
+          phaseChart.data.datasets[3].data = [{ x: state.pressureDelta, y: state.heatLoad }];
+          phaseChart.update('none');
+        }
+
+        if (timeSeriesChart) {
+          timeSeriesChart.data.datasets[0].data = state.historyP;
+          timeSeriesChart.data.datasets[1].data = state.historyLimit;
+          timeSeriesChart.data.datasets[2].data = state.historyE;
+          timeSeriesChart.update('none');
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    // Window Onload Initialization
+    window.onload = function () {
+      initCharts();
+      resizeCanvas();
+      // Render Lucide icons
+      lucide.createIcons();
+      // Start Simulation Loop
+      requestAnimationFrame(step);
+    };
+  </script>
+</body>
+</html>
